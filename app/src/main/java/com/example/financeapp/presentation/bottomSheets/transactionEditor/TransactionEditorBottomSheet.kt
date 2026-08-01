@@ -98,15 +98,23 @@ fun TransactionEditorBottomSheet(
             )
         }
 
-        TransactionEditorField.Date -> TransactionDateSelectionScreen(
-            selectedDate = state.date,
-            onDateSelected = { date ->
-                onIntent(TransactionEditorIntent.DateChanged(date))
-            },
+        TransactionEditorField.Date -> FinanceModalBottomSheet(
             onDismissRequest = {
                 onIntent(TransactionEditorIntent.FieldDismissed)
-            }
-        )
+            },
+            modifier = modifier,
+            showHandle = false
+        ) {
+            TransactionDateSelectionScreen(
+                selectedDate = state.date,
+                onDateSelected = { date ->
+                    onIntent(TransactionEditorIntent.DateChanged(date))
+                },
+                onDismissRequest = {
+                    onIntent(TransactionEditorIntent.FieldDismissed)
+                }
+            )
+        }
 
         TransactionEditorField.Time -> FinanceModalBottomSheet(
             onDismissRequest = {

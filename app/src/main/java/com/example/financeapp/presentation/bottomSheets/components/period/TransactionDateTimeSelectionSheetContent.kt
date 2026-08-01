@@ -8,43 +8,32 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TimePickerDefaults
-import androidx.compose.material3.rememberDateRangePickerState
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.financeapp.R
 import com.example.financeapp.core.theme.CustomPeriodActionTextStyle
-import com.example.financeapp.core.theme.FinanceDatePickerContainer
-import com.example.financeapp.core.theme.FinanceDatePickerSelectedDay
-import com.example.financeapp.core.theme.FinanceTimePickerContainer
-import com.example.financeapp.core.theme.FinanceTimePickerField
 import com.example.financeapp.core.theme.LocalSpacing
 import com.example.financeapp.core.theme.LocalSizing
 import com.example.financeapp.core.theme.TransactionTimePickerTitleTextStyle
-import com.example.financeapp.presentation.common.components.icons.FinanceCloseIcon
 import com.example.financeapp.presentation.common.components.icons.FinanceClockIcon
-import com.example.financeapp.presentation.common.components.icons.FinanceEditIcon
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -59,114 +48,86 @@ internal fun TransactionDateSelectionScreen(
     onDateSelected: (LocalDate) -> Unit,
     onDismissRequest: () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    val initialSelectedDateMillis = selectedDate.toEpochMillisUtc()
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialSelectedDateMillis,
+        initialDisplayedMonthMillis = initialSelectedDateMillis
+    )
+    val spacing = LocalSpacing.current
+    val datePickerContainerColor = MaterialTheme.colorScheme.surfaceVariant
+    val datePickerAccentColor = MaterialTheme.colorScheme.primary
+    val datePickerColors = DatePickerDefaults.colors(
+        containerColor = datePickerContainerColor,
+        titleContentColor = MaterialTheme.colorScheme.outline,
+        headlineContentColor = MaterialTheme.colorScheme.onSurface,
+        weekdayContentColor = MaterialTheme.colorScheme.onSurface,
+        subheadContentColor = MaterialTheme.colorScheme.outline,
+        navigationContentColor = MaterialTheme.colorScheme.outline,
+        dayContentColor = MaterialTheme.colorScheme.onSurface,
+        selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
+        selectedDayContainerColor = datePickerAccentColor,
+        todayContentColor = datePickerAccentColor,
+        todayDateBorderColor = datePickerAccentColor,
+        dividerColor = MaterialTheme.colorScheme.outlineVariant
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = datePickerContainerColor
     ) {
-        val initialSelectedDateMillis = selectedDate.toEpochMillisUtc()
-        val dateRangePickerState = rememberDateRangePickerState(
-            initialSelectedStartDateMillis = initialSelectedDateMillis,
-            initialSelectedEndDateMillis = null,
-            initialDisplayedMonthMillis = initialSelectedDateMillis
-        )
-        val spacing = LocalSpacing.current
-        val sizing = LocalSizing.current
-        val closeDatePickerContentDescription =
-            stringResource(R.string.transaction_date_picker_close)
-        val datePickerColors = DatePickerDefaults.colors(
-            containerColor = FinanceDatePickerContainer,
-            titleContentColor = MaterialTheme.colorScheme.outline,
-            headlineContentColor = MaterialTheme.colorScheme.onSurface,
-            weekdayContentColor = MaterialTheme.colorScheme.onSurface,
-            subheadContentColor = MaterialTheme.colorScheme.outline,
-            navigationContentColor = MaterialTheme.colorScheme.outline,
-            dayContentColor = MaterialTheme.colorScheme.onSurface,
-            selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
-            selectedDayContainerColor = FinanceDatePickerSelectedDay,
-            todayContentColor = FinanceDatePickerSelectedDay,
-            todayDateBorderColor = FinanceDatePickerSelectedDay,
-            dividerColor = MaterialTheme.colorScheme.outlineVariant
-        )
-
-        LaunchedEffect(dateRangePickerState.selectedEndDateMillis) {
-            dateRangePickerState.selectedEndDateMillis?.let { selectedEndDateMillis ->
-                dateRangePickerState.setSelection(
-                    startDateMillis = selectedEndDateMillis,
-                    endDateMillis = null
-                )
-            }
-        }
-
-                Column(modifier = Modifier.fillMaxSize()) {
-                    DateRangePicker(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        state = dateRangePickerState,
-                        title = null,
-                        headline = {
-                            Column {
-                                IconButton(
-                                    modifier = Modifier
-                                        .padding(
-                                            start = spacing.transactionDatePickerCloseStart,
-                                            top = spacing.transactionDatePickerCloseTop
-                                        )
-                                        .size(sizing.topBarActionSize)
-                                        .semantics {
-                                            contentDescription = closeDatePickerContentDescription
-                                        },
-                                    onClick = onDismissRequest
-                                ) {
-                                    FinanceCloseIcon(
-                                        color = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(sizing.icon)
-                                    )
-                                }
-                                Row( horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = spacing.s, start = spacing.transactionDatePickerHeaderTextStart, end = spacing.sm)) {
-                                    Column(Modifier.height(60.dp)) {
-                                        Text(
-                                        text = stringResource(R.string.transaction_date_picker_title),
-                                        style = MaterialTheme.typography.labelLarge
-                                    )
-                                        Text(
-                                            text = dateRangePickerState.selectedStartDateMillis
-                                                ?.toLocalDateUtc()
-                                                ?.formatDatePickerHeadline()
-                                                .orEmpty(),
-                                            style = MaterialTheme.typography.titleLarge
-                                        )}
-                                    FinanceEditIcon(
-                                        color = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(sizing.topBarActionSize))
-                                }
-                            }
-                        },
-                        showModeToggle = false,
-                        colors = datePickerColors
+        Column(modifier = Modifier.fillMaxWidth()) {
+            DatePicker(
+                modifier = Modifier.fillMaxWidth(),
+                state = datePickerState,
+                title = {
+                    Text(
+                        modifier = Modifier.padding(
+                            start = spacing.transactionDatePickerActionsHorizontal,
+                            top = spacing.transactionDatePickerCloseTop,
+                            end = spacing.transactionDatePickerActionsHorizontal
+                        ),
+                        text = stringResource(R.string.transaction_date_picker_title),
+                        style = MaterialTheme.typography.labelLarge
                     )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = spacing.hairline
+                },
+                headline = {
+                    Text(
+                        modifier = Modifier.padding(
+                            horizontal = spacing.transactionDatePickerActionsHorizontal,
+                            vertical = spacing.s
+                        ),
+                        text = datePickerState.selectedDateMillis
+                            ?.toLocalDateUtc()
+                            ?.formatDatePickerHeadline()
+                            .orEmpty(),
+                        style = MaterialTheme.typography.titleLarge
                     )
-                    TransactionDatePickerActions(
-                        onCancelClick = onDismissRequest,
-                        onApplyClick = {
-                            dateRangePickerState.selectedStartDateMillis
-                                ?.toLocalDateUtc()
-                                ?.let(onDateSelected)
-                        }
-                    )
-
+                },
+                showModeToggle = false,
+                colors = datePickerColors
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                thickness = spacing.hairline
+            )
+            TransactionDatePickerActions(
+                containerColor = datePickerContainerColor,
+                contentColor = datePickerAccentColor,
+                onCancelClick = onDismissRequest,
+                onApplyClick = {
+                    datePickerState.selectedDateMillis
+                        ?.toLocalDateUtc()
+                        ?.let(onDateSelected)
+                }
+            )
         }
     }
 }
 
 @Composable
 private fun TransactionDatePickerActions(
+    containerColor: Color,
+    contentColor: Color,
     onCancelClick: () -> Unit,
     onApplyClick: () -> Unit
 ) {
@@ -177,7 +138,8 @@ private fun TransactionDatePickerActions(
         modifier = Modifier
             .fillMaxWidth()
             .height(sizing.transactionDatePickerActionBarHeight)
-            .background(FinanceDatePickerContainer)
+            .navigationBarsPadding()
+            .background(containerColor)
             .padding(horizontal = spacing.transactionDatePickerActionsHorizontal),
         horizontalArrangement = Arrangement.spacedBy(
             space = spacing.transactionDatePickerActionsGap,
@@ -189,14 +151,14 @@ private fun TransactionDatePickerActions(
             Text(
                 text = stringResource(R.string.picker_cancel),
                 style = CustomPeriodActionTextStyle,
-                color = FinanceDatePickerSelectedDay
+                color = contentColor
             )
         }
         TextButton(onClick = onApplyClick) {
             Text(
                 text = stringResource(R.string.picker_apply),
                 style = CustomPeriodActionTextStyle,
-                color = FinanceDatePickerSelectedDay
+                color = contentColor
             )
         }
     }
@@ -229,10 +191,11 @@ internal fun TransactionTimeSelectionSheetContent(
         initialMinute = selectedTime.minute,
         is24Hour = true
     )
+    val timePickerContainerColor = MaterialTheme.colorScheme.surfaceVariant
     val timePickerColors = TimePickerDefaults.colors(
-        containerColor = FinanceTimePickerContainer,
+        containerColor = timePickerContainerColor,
         timeSelectorSelectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-        timeSelectorUnselectedContainerColor = FinanceTimePickerField,
+        timeSelectorUnselectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
         timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface
     )
@@ -241,7 +204,7 @@ internal fun TransactionTimeSelectionSheetContent(
         modifier = Modifier
             .fillMaxWidth()
             .height(sizing.transactionTimePickerSheetHeight),
-        color = FinanceTimePickerContainer
+        color = timePickerContainerColor
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
