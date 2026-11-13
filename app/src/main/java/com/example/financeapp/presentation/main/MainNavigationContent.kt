@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -12,6 +15,7 @@ import com.example.financeapp.core.theme.LocalSpacing
 import com.example.financeapp.domain.model.TransactionType
 import com.example.financeapp.presentation.accounts.AccountsRoute
 import com.example.financeapp.presentation.analytics.AnalyticsRoute
+import com.example.financeapp.presentation.common.network.NetworkStatusViewModel
 import com.example.financeapp.presentation.common.network.NetworkStatusBanner
 import com.example.financeapp.presentation.common.network.PendingSyncStatusBanner
 import com.example.financeapp.presentation.expenses.ExpensesRoute
@@ -22,19 +26,24 @@ import com.example.financeapp.presentation.navigation.isMainRoute
 import androidx.navigation.NavHostController
 import kotlin.math.abs
 
+internal class MainNavigationActions(
+    val onTransactionClick: (Long, TransactionType) -> Unit,
+    val onTransactionDeleteRequest: (Long) -> Unit,
+    val onAccountClick: (Long) -> Unit,
+    val onAccountDeleteRequest: (Long) -> Unit
+)
+
 @Composable
 internal fun MainNavigationContent(
     navController: NavHostController,
     selectedRoute: AppRoute,
-    mainState: MainState,
-    isOnline: Boolean,
+    actions: MainNavigationActions,
     modifier: Modifier = Modifier,
-    onRetry: () -> Unit,
-    onTransactionClick: (Long, TransactionType) -> Unit,
-    onTransactionDeleteRequest: (Long) -> Unit,
-    onAccountClick: (Long) -> Unit,
-    onAccountDeleteRequest: (Long) -> Unit
+    mainViewModel: MainViewModel = hiltViewModel(),
+    networkStatusViewModel: NetworkStatusViewModel = hiltViewModel()
 ) {
+    val mainState by mainViewModel.state.collectAsState()
+    val isOnline by networkStatusViewModel.isOnline.collectAsState()
     val spacing = LocalSpacing.current
     val density = LocalDensity.current
     val edgeGuardPx = with(density) { spacing.contentSwipeEdgeGuard.toPx() }
@@ -86,27 +95,27 @@ internal fun MainNavigationContent(
                 ExpensesRoute(
                     modifier = modifier,
                     state = mainState.expensesState,
-                    onRetry = onRetry,
-                    onTransactionClick = { id -> onTransactionClick(id, TransactionType.EXPENSE) },
-                    onTransactionDeleteRequest = onTransactionDeleteRequest
+                    onRetry = { mainViewModel.onIntent(MainIntent.Retry) },
+                    onTransactionClick = { id -> actions.onTransactionClick(id, TransactionType.EXPENSE) },
+                    onTransactionDeleteRequest = actions.onTransactionDeleteRequest
                 )
             },
             incomeContent = { modifier ->
                 IncomeRoute(
                     modifier = modifier,
                     state = mainState.incomeState,
-                    onRetry = onRetry,
-                    onTransactionClick = { id -> onTransactionClick(id, TransactionType.INCOME) },
-                    onTransactionDeleteRequest = onTransactionDeleteRequest
+                    onRetry = { mainViewModel.onIntent(MainIntent.Retry) },
+                    onTransactionClick = { id -> actions.onTransactionClick(id, TransactionType.INCOME) },
+                    onTransactionDeleteRequest = actions.onTransactionDeleteRequest
                 )
             },
             accountsContent = { modifier ->
                 AccountsRoute(
                     modifier = modifier,
                     state = mainState.accountsState,
-                    onRetry = onRetry,
-                    onAccountClick = onAccountClick,
-                    onAccountDeleteRequest = onAccountDeleteRequest
+                    onRetry = { mainViewModel.onIntent(MainIntent.Retry) },
+                    onAccountClick = actions.onAccountClick,
+                    onAccountDeleteRequest = actions.onAccountDeleteRequest
                 )
             },
             analyticsContent = { modifier ->

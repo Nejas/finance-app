@@ -22,12 +22,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.financeapp.R
-import com.example.financeapp.core.localization.AppLanguage
-import com.example.financeapp.core.theme.AppThemeMode
-import com.example.financeapp.domain.model.AuthProtectionState
-import com.example.financeapp.domain.model.Currency
 import com.example.financeapp.domain.model.TransactionType
-import com.example.financeapp.domain.model.UserSettings
+import com.example.financeapp.presentation.auth.BiometricPromptController
+import com.example.financeapp.presentation.settings.UserSettingsViewModel
 import com.example.financeapp.presentation.bottomSheets.accountEditor.AccountEditorEffect
 import com.example.financeapp.presentation.bottomSheets.accountEditor.AccountEditorIntent
 import com.example.financeapp.presentation.bottomSheets.accountEditor.AccountEditorMode
@@ -37,7 +34,6 @@ import com.example.financeapp.presentation.bottomSheets.transactionEditor.Transa
 import com.example.financeapp.presentation.bottomSheets.transactionEditor.TransactionEditorIntent
 import com.example.financeapp.presentation.bottomSheets.transactionEditor.TransactionEditorMode
 import com.example.financeapp.presentation.bottomSheets.transactionEditor.TransactionEditorViewModel
-import com.example.financeapp.presentation.common.network.NetworkStatusViewModel
 import com.example.financeapp.presentation.common.placeholders.ScreenError
 import com.example.financeapp.presentation.navigation.AppRoute
 import kotlinx.coroutines.launch
@@ -45,34 +41,16 @@ import kotlinx.coroutines.launch
 /** Connects app-wide state and events to independent presentation hosts. */
 @Composable
 fun FinanceApp(
-    userSettings: UserSettings,
-    hasPinCode: Boolean,
-    authProtectionState: AuthProtectionState,
-    isBiometricAvailable: Boolean,
-    selectedLanguage: AppLanguage,
-    onLanguageSelected: (AppLanguage) -> Unit,
-    onThemeModeSelected: (AppThemeMode) -> Unit,
-    onCurrencySelected: (Currency) -> Unit,
-    onBiometricLoginEnabledChange: (Boolean) -> Unit,
-    onBiometricAuthenticationRequest: (
-        onAuthenticated: () -> Unit,
-        onFailure: (isFailedAttempt: Boolean) -> Unit
-    ) -> Unit,
-    onVerifyPinCode: suspend (String) -> Boolean,
-    onSetPinCode: suspend (String) -> Unit,
-    onClearPinCode: suspend () -> Unit,
-    onCanAttemptPin: suspend () -> Boolean,
-    onPinFailure: suspend () -> AuthProtectionState,
-    onAuthSuccess: suspend () -> Unit,
+    biometricPromptController: BiometricPromptController,
+    settingsViewModel: UserSettingsViewModel = hiltViewModel(),
     mainViewModel: MainViewModel = hiltViewModel(),
-    networkStatusViewModel: NetworkStatusViewModel = hiltViewModel(),
     transactionEditorViewModel: TransactionEditorViewModel = hiltViewModel(),
     accountEditorViewModel: AccountEditorViewModel = hiltViewModel()
 ) {
+    val userSettings by settingsViewModel.settings.collectAsState()
     val mainState by mainViewModel.state.collectAsState()
     val transactionEditorState by transactionEditorViewModel.state.collectAsState()
     val accountEditorState by accountEditorViewModel.state.collectAsState()
-    val isOnline by networkStatusViewModel.isOnline.collectAsState()
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -81,7 +59,6 @@ fun FinanceApp(
     var isSettingsSheetVisible by rememberSaveable { mutableStateOf(false) }
     var activeSettingsItemKey by rememberSaveable { mutableStateOf<String?>(null) }
     val activeSettingsItem = SettingsListItem.fromSaveableKey(activeSettingsItemKey)
-        ?.takeUnless { it == SettingsListItem.Biometrics && !isBiometricAvailable }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val selectedRoute = navBackStackEntry?.destination?.route.toAppRoute()
     val deleteFailedMessage = stringResource(R.string.delete_failed)
@@ -161,23 +138,23 @@ fun FinanceApp(
         MainNavigationContent(
             navController = navController,
             selectedRoute = selectedRoute,
-            mainState = mainState,
-            isOnline = isOnline,
-            onRetry = { mainViewModel.onIntent(MainIntent.Retry) },
-            onTransactionClick = { id, type ->
-                transactionEditorViewModel.onIntent(
-                    TransactionEditorIntent.Open(
-                        TransactionEditorMode.Edit(id, type, userSettings.selectedCurrency)
+            actions = MainNavigationActions(
+                onTransactionClick = { id, type ->
+                    transactionEditorViewModel.onIntent(
+                        TransactionEditorIntent.Open(
+                            TransactionEditorMode.Edit(id, type, userSettings.selectedCurrency)
+                        )
                     )
-                )
-            },
-            onTransactionDeleteRequest = { pendingDeleteTarget = DeleteTarget.Transaction(it) },
-            onAccountClick = { id ->
-                accountEditorViewModel.onIntent(
-                    AccountEditorIntent.Open(AccountEditorMode.Edit(id, userSettings.selectedCurrency))
-                )
-            },
-            onAccountDeleteRequest = { pendingDeleteTarget = DeleteTarget.Account(it) },
+                },
+                onTransactionDeleteRequest = { pendingDeleteTarget = DeleteTarget.Transaction(it) },
+                onAccountClick = { id ->
+                    accountEditorViewModel.onIntent(
+                        AccountEditorIntent.Open(AccountEditorMode.Edit(id, userSettings.selectedCurrency))
+                    )
+                },
+                onAccountDeleteRequest = { pendingDeleteTarget = DeleteTarget.Account(it) }
+            ),
+            mainViewModel = mainViewModel,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
@@ -194,22 +171,7 @@ fun FinanceApp(
         isVisible = isSettingsSheetVisible,
         activeItem = activeSettingsItem,
         mainState = mainState,
-        userSettings = userSettings,
-        hasPinCode = hasPinCode,
-        authProtectionState = authProtectionState,
-        isBiometricAvailable = isBiometricAvailable,
-        selectedLanguage = selectedLanguage,
-        onLanguageSelected = onLanguageSelected,
-        onThemeModeSelected = onThemeModeSelected,
-        onCurrencySelected = onCurrencySelected,
-        onBiometricLoginEnabledChange = onBiometricLoginEnabledChange,
-        onBiometricAuthenticationRequest = onBiometricAuthenticationRequest,
-        onVerifyPinCode = onVerifyPinCode,
-        onSetPinCode = onSetPinCode,
-        onClearPinCode = onClearPinCode,
-        onCanAttemptPin = onCanAttemptPin,
-        onPinFailure = onPinFailure,
-        onAuthSuccess = onAuthSuccess,
+        biometricPromptController = biometricPromptController,
         onDismissSettings = {
             isSettingsSheetVisible = false
             activeSettingsItemKey = null

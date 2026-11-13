@@ -1,5 +1,7 @@
 package com.example.financeapp.presentation.settings
 
+import com.example.financeapp.core.localization.AppLanguage
+import com.example.financeapp.core.localization.LanguageController
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.financeapp.core.theme.AppThemeMode
@@ -19,7 +21,8 @@ import javax.inject.Inject
 @HiltViewModel
 class UserSettingsViewModel @Inject constructor(
     private val userSettingsUseCases: UserSettingsUseCases,
-    private val securityUseCases: SecurityUseCases
+    private val securityUseCases: SecurityUseCases,
+    private val languageController: LanguageController
 ) : ViewModel() {
 
     val settings: StateFlow<UserSettings> = userSettingsUseCases.settings.stateIn(
@@ -51,6 +54,10 @@ class UserSettingsViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(StopTimeoutMillis),
             initialValue = AuthProtectionState()
         )
+
+    fun setLanguage(language: AppLanguage) {
+        languageController.selectLanguage(language)
+    }
 
     fun setThemeMode(themeMode: AppThemeMode) {
         viewModelScope.launch {

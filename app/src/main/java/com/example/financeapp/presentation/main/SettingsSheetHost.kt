@@ -1,12 +1,19 @@
 package com.example.financeapp.presentation.main
 
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.financeapp.core.localization.AppLanguage
-import com.example.financeapp.core.theme.AppThemeMode
-import com.example.financeapp.domain.model.AuthProtectionState
 import com.example.financeapp.domain.model.Category
-import com.example.financeapp.domain.model.Currency
-import com.example.financeapp.domain.model.UserSettings
+import com.example.financeapp.presentation.auth.BiometricPromptController
+import com.example.financeapp.presentation.settings.UserSettingsViewModel
 import com.example.financeapp.presentation.bottomSheets.components.categories.FinanceCategorySelectionSheetContent
 import com.example.financeapp.presentation.bottomSheets.components.currency.FinanceCurrencySelectionSheetContent
 import com.example.financeapp.presentation.bottomSheets.settings.BiometricSettingsSheet
@@ -23,29 +30,25 @@ internal fun SettingsSheetHost(
     isVisible: Boolean,
     activeItem: SettingsListItem?,
     mainState: MainState,
-    userSettings: UserSettings,
-    hasPinCode: Boolean,
-    authProtectionState: AuthProtectionState,
-    isBiometricAvailable: Boolean,
-    selectedLanguage: AppLanguage,
-    onLanguageSelected: (AppLanguage) -> Unit,
-    onThemeModeSelected: (AppThemeMode) -> Unit,
-    onCurrencySelected: (Currency) -> Unit,
-    onBiometricLoginEnabledChange: (Boolean) -> Unit,
-    onBiometricAuthenticationRequest: (onAuthenticated: () -> Unit, onFailure: (Boolean) -> Unit) -> Unit,
-    onVerifyPinCode: suspend (String) -> Boolean,
-    onSetPinCode: suspend (String) -> Unit,
-    onClearPinCode: suspend () -> Unit,
-    onCanAttemptPin: suspend () -> Boolean,
-    onPinFailure: suspend () -> AuthProtectionState,
-    onAuthSuccess: suspend () -> Unit,
+    biometricPromptController: BiometricPromptController,
     onDismissSettings: () -> Unit,
     onDismissActiveItem: () -> Unit,
     onItemSelected: (SettingsListItem) -> Unit,
-    onBiometricFailure: () -> Unit
+    onBiometricFailure: () -> Unit,
+    settingsViewModel: UserSettingsViewModel = hiltViewModel()
 ) {
     if (!isVisible) return
-    when (activeItem) {
+    val userSettings by settingsViewModel.settings.collectAsState()
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isBiometricAvailable = remember(context) {
+        BiometricManager.from(context).canAuthenticate(BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+    }
+    val applicationLocales = AppCompatDelegate.getApplicationLocales()
+    val languageTag = if (applicationLocales.isEmpty) configuration.locales[0].language
+        else applicationLocales[0]?.language
+    val selectedLanguage = AppLanguage.fromLanguageTag(languageTag.orEmpty()) ?: AppLanguage.RUSSIAN
+    when (activeItem?.takeUnless { it == SettingsListItem.Biometrics && !isBiometricAvailable }) {
         SettingsListItem.Articles -> FinanceModalBottomSheet(onDismissRequest = onDismissActiveItem) {
             FinanceCategorySelectionSheetContent(
                 categories = mainState.settingsCategories(),
@@ -58,7 +61,7 @@ internal fun SettingsSheetHost(
             LanguageSettingsSheet(
                 selectedLanguage = selectedLanguage,
                 onLanguageSelected = { language ->
-                    onLanguageSelected(language)
+                    settingsViewModel.setLanguage(language)
                     onDismissActiveItem()
                 }
             )
@@ -66,20 +69,13 @@ internal fun SettingsSheetHost(
         SettingsListItem.Theme -> FinanceModalBottomSheet(onDismissRequest = onDismissActiveItem) {
             ThemeSettingsSheet(
                 selectedThemeMode = userSettings.themeMode,
-                onThemeModeSelected = onThemeModeSelected
+                onThemeModeSelected = settingsViewModel::setThemeMode
             )
         }
         SettingsListItem.PinCode -> FinanceModalBottomSheet(onDismissRequest = onDismissActiveItem) {
-            PinCodeSettingsSheet(
-                hasPinCode = hasPinCode,
-                authProtectionState = authProtectionState,
-                onVerifyPinCode = onVerifyPinCode,
-                onSetPinCode = onSetPinCode,
-                onClearPinCode = onClearPinCode,
-                onCanAttemptPin = onCanAttemptPin,
-                onPinFailure = onPinFailure,
-                onAuthSuccess = onAuthSuccess,
-                onPinCodeChanged = onDismissActiveItem
+            PinCodeSettingsRoute(
+                onPinCodeChanged = onDismissActiveItem,
+                settingsViewModel = settingsViewModel
             )
         }
         SettingsListItem.Biometrics -> FinanceModalBottomSheet(onDismissRequest = onDismissActiveItem) {
@@ -87,12 +83,12 @@ internal fun SettingsSheetHost(
                 isEnabled = userSettings.isBiometricLoginEnabled,
                 onEnabledChange = { isEnabled ->
                     if (isEnabled) {
-                        onBiometricAuthenticationRequest(
-                            { onBiometricLoginEnabledChange(true) },
+                        biometricPromptController.authenticate(
+                            { settingsViewModel.setBiometricLoginEnabled(true) },
                             { isFailedAttempt -> if (isFailedAttempt) onBiometricFailure() }
                         )
                     } else {
-                        onBiometricLoginEnabledChange(false)
+                        settingsViewModel.setBiometricLoginEnabled(false)
                     }
                 }
             )
@@ -101,7 +97,7 @@ internal fun SettingsSheetHost(
             FinanceCurrencySelectionSheetContent(
                 selectedCurrency = userSettings.selectedCurrency,
                 onCurrencyClick = { currency ->
-                    onCurrencySelected(currency)
+                    settingsViewModel.setCurrency(currency)
                     onDismissActiveItem()
                 }
             )
@@ -118,3 +114,23 @@ private fun MainState.settingsCategories(): List<Category> =
     (expensesState.categoriesById.values + incomeState.categoriesById.values)
         .distinctBy(Category::id)
         .sortedWith(compareBy<Category> { it.type }.thenBy { it.name })
+
+@Composable
+private fun PinCodeSettingsRoute(
+    onPinCodeChanged: () -> Unit,
+    settingsViewModel: UserSettingsViewModel
+) {
+    val hasPinCode by settingsViewModel.hasPinCode.collectAsState()
+    val authProtectionState by settingsViewModel.authProtectionState.collectAsState()
+    PinCodeSettingsSheet(
+        hasPinCode = hasPinCode == true,
+        authProtectionState = authProtectionState,
+        onVerifyPinCode = settingsViewModel::verifyPinCode,
+        onSetPinCode = settingsViewModel::setPinCode,
+        onClearPinCode = settingsViewModel::clearPinProtection,
+        onCanAttemptPin = settingsViewModel::canAttemptPin,
+        onPinFailure = settingsViewModel::registerPinFailure,
+        onAuthSuccess = settingsViewModel::registerAuthSuccess,
+        onPinCodeChanged = onPinCodeChanged
+    )
+}

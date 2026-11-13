@@ -1,5 +1,7 @@
 package com.example.financeapp.presentation.auth
 
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,7 +24,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,7 +34,7 @@ import com.example.financeapp.R
 import com.example.financeapp.core.theme.FinanceBiometricIconContainer
 import com.example.financeapp.core.theme.LocalSizing
 import com.example.financeapp.core.theme.LocalSpacing
-import com.example.financeapp.domain.model.AuthProtectionState
+import com.example.financeapp.presentation.settings.UserSettingsViewModel
 import com.example.financeapp.presentation.common.components.PinCodeEntryContent
 import com.example.financeapp.presentation.common.components.PinCodeLength
 import com.example.financeapp.presentation.common.components.base.RoundFrame
@@ -39,22 +44,18 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AuthGateScreen(
-    authProtectionState: AuthProtectionState,
-    isBiometricLoginEnabled: Boolean,
-    isBiometricAvailable: Boolean,
-    onVerifyPinCode: suspend (String) -> Boolean,
-    onCanAttemptPin: suspend () -> Boolean,
-    onPinFailure: suspend () -> AuthProtectionState,
-    onBiometricFailure: suspend () -> AuthProtectionState,
-    onAuthSuccess: suspend () -> Unit,
-    onBiometricAuthenticationRequest: (
-        onAuthenticated: () -> Unit,
-        onFailure: (isFailedAttempt: Boolean) -> Unit
-    ) -> Unit,
-    onBiometricAuthenticationCancel: () -> Unit,
+    biometricPromptController: BiometricPromptController,
     onAuthenticated: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    settingsViewModel: UserSettingsViewModel = hiltViewModel()
 ) {
+    val authProtectionState by settingsViewModel.authProtectionState.collectAsState()
+    val userSettings by settingsViewModel.settings.collectAsState()
+    val isBiometricLoginEnabled = userSettings.isBiometricLoginEnabled
+    val context = LocalContext.current
+    val isBiometricAvailable = remember(context) {
+        BiometricManager.from(context).canAuthenticate(BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+    }
     val spacing = LocalSpacing.current
     val sizing = LocalSizing.current
     val coroutineScope = rememberCoroutineScope()
@@ -75,19 +76,19 @@ fun AuthGateScreen(
         (isPinLocked || authProtectionState.isBiometricLocked)
 
     fun requestBiometricAuthentication() {
-        onBiometricAuthenticationRequest(
+        biometricPromptController.authenticate(
             {
                 coroutineScope.launch {
-                    onAuthSuccess()
+                    settingsViewModel.registerAuthSuccess()
                     onAuthenticated()
                 }
             },
             { isFailedAttempt ->
                 coroutineScope.launch {
                     if (isFailedAttempt) {
-                        val nextState = onBiometricFailure()
+                        val nextState = settingsViewModel.registerBiometricFailure()
                         if (nextState.isBiometricLocked) {
-                            onBiometricAuthenticationCancel()
+                            biometricPromptController.cancel()
                         }
                     }
                     pinFocusRequestKey++
@@ -154,13 +155,13 @@ fun AuthGateScreen(
                         if (value.length == PinCodeLength) {
                             isProcessing = true
                             coroutineScope.launch {
-                                if (!onCanAttemptPin()) {
+                                if (!settingsViewModel.canAttemptPin()) {
                                     hasPinError = true
-                                } else if (onVerifyPinCode(value)) {
-                                    onAuthSuccess()
+                                } else if (settingsViewModel.verifyPinCode(value)) {
+                                    settingsViewModel.registerAuthSuccess()
                                     onAuthenticated()
                                 } else {
-                                    onPinFailure()
+                                    settingsViewModel.registerPinFailure()
                                     hasPinError = true
                                 }
                                 input = ""
