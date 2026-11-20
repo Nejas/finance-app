@@ -1,6 +1,7 @@
 package com.example.financeapp.presentation.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -17,7 +18,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -34,6 +38,7 @@ import com.example.financeapp.presentation.bottomSheets.transactionEditor.Transa
 import com.example.financeapp.presentation.bottomSheets.transactionEditor.TransactionEditorIntent
 import com.example.financeapp.presentation.bottomSheets.transactionEditor.TransactionEditorMode
 import com.example.financeapp.presentation.bottomSheets.transactionEditor.TransactionEditorViewModel
+import com.example.financeapp.presentation.common.testing.FinanceTestTags
 import com.example.financeapp.presentation.common.placeholders.ScreenError
 import com.example.financeapp.presentation.navigation.AppRoute
 import kotlinx.coroutines.launch
@@ -101,108 +106,117 @@ fun FinanceApp(
         }
     }
 
-    Scaffold(
-        modifier = Modifier.background(MaterialTheme.colorScheme.background),
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = {
-            MainAppTopBar(
-                route = selectedRoute,
-                selectedDate = mainState.selectedDate,
-                onAnalyticsClick = { navController.navigateToRoute(AppRoute.Analytics) },
-                onBackClick = navController::navigateBackToMain,
-                onSettingsClick = { isSettingsSheetVisible = true }
-            )
-        },
-        floatingActionButton = {
-            MainFloatingActionButton(route = selectedRoute) {
-                when (selectedRoute) {
-                    AppRoute.Accounts -> accountEditorViewModel.onIntent(
-                        AccountEditorIntent.Open(AccountEditorMode.Create(userSettings.selectedCurrency))
-                    )
-                    AppRoute.Expenses,
-                    AppRoute.Income -> transactionEditorViewModel.onIntent(
-                        TransactionEditorIntent.Open(
-                            TransactionEditorMode.Create(
-                                transactionType = selectedRoute.toTransactionType(),
-                                currency = userSettings.selectedCurrency
-                            )
-                        )
-                    )
-                    AppRoute.Analytics -> Unit
-                }
-            }
-        },
-        bottomBar = { MainBottomNavigation(selectedRoute, navController::navigateToRoute) }
-    ) { innerPadding ->
-        MainNavigationContent(
-            navController = navController,
-            selectedRoute = selectedRoute,
-            actions = MainNavigationActions(
-                onTransactionClick = { id, type ->
-                    transactionEditorViewModel.onIntent(
-                        TransactionEditorIntent.Open(
-                            TransactionEditorMode.Edit(id, type, userSettings.selectedCurrency)
-                        )
-                    )
-                },
-                onTransactionDeleteRequest = { pendingDeleteTarget = DeleteTarget.Transaction(it) },
-                onAccountClick = { id ->
-                    accountEditorViewModel.onIntent(
-                        AccountEditorIntent.Open(AccountEditorMode.Edit(id, userSettings.selectedCurrency))
-                    )
-                },
-                onAccountDeleteRequest = { pendingDeleteTarget = DeleteTarget.Account(it) }
-            ),
-            mainViewModel = mainViewModel,
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag(FinanceTestTags.AppRoot)
+            .semantics { testTagsAsResourceId = true }
+    ) {
+        Scaffold(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .background(MaterialTheme.colorScheme.background),
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            topBar = {
+                MainAppTopBar(
+                    route = selectedRoute,
+                    selectedDate = mainState.selectedDate,
+                    onAnalyticsClick = { navController.navigateToRoute(AppRoute.Analytics) },
+                    onBackClick = navController::navigateBackToMain,
+                    onSettingsClick = { isSettingsSheetVisible = true }
+                )
+            },
+            floatingActionButton = {
+                MainFloatingActionButton(route = selectedRoute) {
+                    when (selectedRoute) {
+                        AppRoute.Accounts -> accountEditorViewModel.onIntent(
+                            AccountEditorIntent.Open(AccountEditorMode.Create(userSettings.selectedCurrency))
+                        )
+                        AppRoute.Expenses,
+                        AppRoute.Income -> transactionEditorViewModel.onIntent(
+                            TransactionEditorIntent.Open(
+                                TransactionEditorMode.Create(
+                                    transactionType = selectedRoute.toTransactionType(),
+                                    currency = userSettings.selectedCurrency
+                                )
+                            )
+                        )
+                        AppRoute.Analytics -> Unit
+                    }
+                }
+            },
+            bottomBar = { MainBottomNavigation(selectedRoute, navController::navigateToRoute) }
+        ) { innerPadding ->
+            MainNavigationContent(
+                navController = navController,
+                selectedRoute = selectedRoute,
+                actions = MainNavigationActions(
+                    onTransactionClick = { id, type ->
+                        transactionEditorViewModel.onIntent(
+                            TransactionEditorIntent.Open(
+                                TransactionEditorMode.Edit(id, type, userSettings.selectedCurrency)
+                            )
+                        )
+                    },
+                    onTransactionDeleteRequest = { pendingDeleteTarget = DeleteTarget.Transaction(it) },
+                    onAccountClick = { id ->
+                        accountEditorViewModel.onIntent(
+                            AccountEditorIntent.Open(AccountEditorMode.Edit(id, userSettings.selectedCurrency))
+                        )
+                    },
+                    onAccountDeleteRequest = { pendingDeleteTarget = DeleteTarget.Account(it) }
+                ),
+                mainViewModel = mainViewModel,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            )
+        }
+
+        EditorSheetHost(
+            transactionState = transactionEditorState,
+            accountState = accountEditorState,
+            onTransactionIntent = transactionEditorViewModel::onIntent,
+            onAccountIntent = accountEditorViewModel::onIntent
+        )
+        SettingsSheetHost(
+            isVisible = isSettingsSheetVisible,
+            activeItem = activeSettingsItem,
+            mainState = mainState,
+            biometricPromptController = biometricPromptController,
+            onDismissSettings = {
+                isSettingsSheetVisible = false
+                activeSettingsItemKey = null
+            },
+            onDismissActiveItem = { activeSettingsItemKey = null },
+            onItemSelected = { activeSettingsItemKey = it.saveableKey },
+            onBiometricFailure = {
+                coroutineScope.launch { snackbarHostState.showSnackbar(biometricFailedMessage) }
+            }
+        )
+        MainDialogHost(
+            deleteTarget = pendingDeleteTarget,
+            failedSyncOperationsCount = failedSyncOperationsCount,
+            onDeleteConfirmed = { target ->
+                when (target) {
+                    is DeleteTarget.Transaction -> mainViewModel.onIntent(MainIntent.DeleteTransaction(target.id))
+                    is DeleteTarget.Account -> mainViewModel.onIntent(MainIntent.DeleteFinancialAccount(target.id))
+                }
+                pendingDeleteTarget = null
+            },
+            onDeleteDismissed = { pendingDeleteTarget = null },
+            onRetryFailedSync = {
+                mainViewModel.onIntent(MainIntent.RetryFailedSyncOperations)
+                failedSyncOperationsCount = null
+            },
+            onDiscardFailedSync = {
+                mainViewModel.onIntent(MainIntent.DiscardFailedSyncOperations)
+                failedSyncOperationsCount = null
+            },
+            onSyncDialogDismissed = { failedSyncOperationsCount = null }
         )
     }
-
-    EditorSheetHost(
-        transactionState = transactionEditorState,
-        accountState = accountEditorState,
-        onTransactionIntent = transactionEditorViewModel::onIntent,
-        onAccountIntent = accountEditorViewModel::onIntent
-    )
-    SettingsSheetHost(
-        isVisible = isSettingsSheetVisible,
-        activeItem = activeSettingsItem,
-        mainState = mainState,
-        biometricPromptController = biometricPromptController,
-        onDismissSettings = {
-            isSettingsSheetVisible = false
-            activeSettingsItemKey = null
-        },
-        onDismissActiveItem = { activeSettingsItemKey = null },
-        onItemSelected = { activeSettingsItemKey = it.saveableKey },
-        onBiometricFailure = {
-            coroutineScope.launch { snackbarHostState.showSnackbar(biometricFailedMessage) }
-        }
-    )
-    MainDialogHost(
-        deleteTarget = pendingDeleteTarget,
-        failedSyncOperationsCount = failedSyncOperationsCount,
-        onDeleteConfirmed = { target ->
-            when (target) {
-                is DeleteTarget.Transaction -> mainViewModel.onIntent(MainIntent.DeleteTransaction(target.id))
-                is DeleteTarget.Account -> mainViewModel.onIntent(MainIntent.DeleteFinancialAccount(target.id))
-            }
-            pendingDeleteTarget = null
-        },
-        onDeleteDismissed = { pendingDeleteTarget = null },
-        onRetryFailedSync = {
-            mainViewModel.onIntent(MainIntent.RetryFailedSyncOperations)
-            failedSyncOperationsCount = null
-        },
-        onDiscardFailedSync = {
-            mainViewModel.onIntent(MainIntent.DiscardFailedSyncOperations)
-            failedSyncOperationsCount = null
-        },
-        onSyncDialogDismissed = { failedSyncOperationsCount = null }
-    )
 }
 
 private fun AppRoute.toTransactionType(): TransactionType = when (this) {

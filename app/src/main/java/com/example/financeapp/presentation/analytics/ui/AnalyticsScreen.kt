@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +56,7 @@ import com.example.financeapp.presentation.common.model.FinanceListItemUiModel
 import com.example.financeapp.presentation.common.placeholders.EmptyContent
 import com.example.financeapp.presentation.common.placeholders.ErrorContent
 import com.example.financeapp.presentation.common.placeholders.LoadingContent
+import com.example.financeapp.presentation.common.testing.FinanceTestTags
 import java.time.LocalDate
 
 @Composable
@@ -66,6 +68,7 @@ fun AnalyticsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .testTag(FinanceTestTags.AnalyticsScreen)
             .background(MaterialTheme.colorScheme.background)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {

@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +32,7 @@ import com.example.financeapp.core.theme.LocalSpacing
 import com.example.financeapp.presentation.common.components.FinanceFieldIcon
 import com.example.financeapp.presentation.common.components.base.FinanceModalBottomSheet
 import com.example.financeapp.presentation.common.components.base.RoundFrame
+import com.example.financeapp.presentation.common.testing.FinanceTestTags
 
 @Composable
 fun SettingsBottomSheet(
@@ -67,6 +69,7 @@ fun SettingsSheetContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .testTag(FinanceTestTags.SettingsSheet)
             .verticalScroll(rememberScrollState())
     ) {
         Text(
@@ -140,6 +143,7 @@ private fun SettingsSectionRow(
         modifier = modifier
             .fillMaxWidth()
             .height(sizing.settingsRowHeight)
+            .testTag(FinanceTestTags.settingsItem(item.saveableKey))
             .clickable(onClick = onClick)
             .padding(horizontal = spacing.settingsRowHorizontal),
         verticalAlignment = Alignment.CenterVertically,

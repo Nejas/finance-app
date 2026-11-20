@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -26,6 +27,7 @@ import com.example.financeapp.presentation.common.utils.formatHourMinute
 import com.example.financeapp.presentation.common.utils.symbol
 import com.example.financeapp.presentation.bottomSheets.components.period.TransactionDateSelectionScreen
 import com.example.financeapp.presentation.bottomSheets.components.period.TransactionTimeSelectionSheetContent
+import com.example.financeapp.presentation.common.testing.FinanceTestTags
 
 @Composable
 fun TransactionEditorBottomSheet(
@@ -199,6 +201,11 @@ private fun TransactionFormBottomSheet(
                 indicatorType = FinanceSelectionIndicatorType.CheckMark,
                 onClick = {
                     onIntent(TransactionEditorIntent.FieldClicked(field))
+                },
+                rowModifier = if (field == TransactionEditorField.Date) {
+                    Modifier.testTag(FinanceTestTags.TransactionDateField)
+                } else {
+                    Modifier
                 },
                 showDivider = true,
                 leadingContent = {

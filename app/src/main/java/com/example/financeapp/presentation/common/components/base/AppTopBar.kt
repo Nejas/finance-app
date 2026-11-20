@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -36,6 +37,7 @@ import com.example.financeapp.core.theme.LocalSpacing
 import com.example.financeapp.presentation.common.components.icons.FinanceBarChartIcon
 import com.example.financeapp.presentation.common.components.icons.FinanceCalendarIcon
 import com.example.financeapp.presentation.common.components.icons.FinanceSlidersIcon
+import com.example.financeapp.presentation.common.testing.FinanceTestTags
 import com.example.financeapp.presentation.common.utils.formatDayMonth
 import java.time.LocalDate
 
@@ -158,6 +160,12 @@ private fun TopBarIconButton(
     Box(
         modifier = Modifier
             .size(sizing.topBarActionSize)
+            .testTag(
+                when (type) {
+                    TopBarIconType.ANALYTICS -> FinanceTestTags.TopBarAnalytics
+                    TopBarIconType.SETTINGS -> FinanceTestTags.TopBarSettings
+                }
+            )
             .clip(CircleShape)
             .clickable(onClick = onClick)
             .background(MaterialTheme.colorScheme.background)

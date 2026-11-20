@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.example.financeapp.R
 import com.example.financeapp.core.theme.CustomPeriodActionTextStyle
@@ -34,6 +35,7 @@ import com.example.financeapp.core.theme.LocalSpacing
 import com.example.financeapp.core.theme.LocalSizing
 import com.example.financeapp.core.theme.TransactionTimePickerTitleTextStyle
 import com.example.financeapp.presentation.common.components.icons.FinanceClockIcon
+import com.example.financeapp.presentation.common.testing.FinanceTestTags
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -77,7 +79,9 @@ internal fun TransactionDateSelectionScreen(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             DatePicker(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(FinanceTestTags.TransactionDatePicker),
                 state = datePickerState,
                 title = {
                     Text(
@@ -95,7 +99,7 @@ internal fun TransactionDateSelectionScreen(
                         modifier = Modifier.padding(
                             horizontal = spacing.transactionDatePickerActionsHorizontal,
                             vertical = spacing.s
-                        ),
+                        ).testTag(FinanceTestTags.TransactionDatePickerHeadline),
                         text = datePickerState.selectedDateMillis
                             ?.toLocalDateUtc()
                             ?.formatDatePickerHeadline()
@@ -147,14 +151,20 @@ private fun TransactionDatePickerActions(
         ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TextButton(onClick = onCancelClick) {
+        TextButton(
+            onClick = onCancelClick,
+            modifier = Modifier.testTag(FinanceTestTags.TransactionDatePickerCancel)
+        ) {
             Text(
                 text = stringResource(R.string.picker_cancel),
                 style = CustomPeriodActionTextStyle,
                 color = contentColor
             )
         }
-        TextButton(onClick = onApplyClick) {
+        TextButton(
+            onClick = onApplyClick,
+            modifier = Modifier.testTag(FinanceTestTags.TransactionDatePickerApply)
+        ) {
             Text(
                 text = stringResource(R.string.picker_apply),
                 style = CustomPeriodActionTextStyle,

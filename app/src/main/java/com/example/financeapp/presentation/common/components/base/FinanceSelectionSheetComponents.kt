@@ -76,6 +76,7 @@ fun FinanceSelectionRow(
     indicatorType: FinanceSelectionIndicatorType,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    rowModifier: Modifier = Modifier,
     enabled: Boolean = true,
     subtitle: String? = null,
     showDivider: Boolean = true,
@@ -98,7 +99,7 @@ fun FinanceSelectionRow(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
+            modifier = rowModifier
                 .height(resolvedRowHeight)
                 .fillMaxWidth()
                 .clickable(
