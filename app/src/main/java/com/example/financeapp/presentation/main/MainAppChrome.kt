@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import com.example.financeapp.R
 import com.example.financeapp.core.theme.LocalSizing
 import com.example.financeapp.presentation.common.components.base.AppTopBar
@@ -19,6 +20,7 @@ import com.example.financeapp.presentation.common.components.base.BottomNavigati
 import com.example.financeapp.presentation.common.components.base.DetailTopBar
 import com.example.financeapp.presentation.common.components.base.FinanceActionButton
 import com.example.financeapp.presentation.common.components.icons.FinancePlusIcon
+import com.example.financeapp.presentation.common.testing.FinanceTestTags
 import com.example.financeapp.presentation.navigation.AppRoute
 import com.example.financeapp.presentation.navigation.isMainRoute
 import java.time.LocalDate
@@ -62,6 +64,7 @@ internal fun MainFloatingActionButton(
     AnimatedVisibility(visible = route != AppRoute.Analytics, enter = fadeIn(), exit = fadeOut()) {
         FinanceActionButton(
             onClick = onClick,
+            modifier = Modifier.testTag(FinanceTestTags.TransactionCreateAction),
             icon = {
                 FinancePlusIcon(
                     color = MaterialTheme.colorScheme.primary,

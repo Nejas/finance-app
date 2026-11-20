@@ -128,7 +128,10 @@ internal fun PinCodeSuccessContent(messageResId: Int, modifier: Modifier = Modif
     val spacing = LocalSpacing.current
     val sizing = LocalSizing.current
     Column(
-        modifier = modifier.fillMaxWidth().padding(vertical = spacing.pinCodeContentVertical),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(FinanceTestTags.PinCodeSuccess)
+            .padding(vertical = spacing.pinCodeContentVertical),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(spacing.md)
     ) {

@@ -1,413 +1,231 @@
 # FinanceApp
 
-## Что есть в приложении
+Android-приложение для управления личными финансами: расходы, доходы, счета и аналитика в одном интерфейсе.
 
-- расходы, доходы, счета и аналитика в едином Compose-интерфейсе;
-- добавление и редактирование транзакций и счетов;
-- offline-first работа через Room: ранее загруженные данные доступны без интернета;
-- создание и редактирование данных offline с последующей синхронизацией;
-- автоматическая синхронизация с backend через WorkManager раз в 2 часа;
-- интеграция с backend через Retrofit и Bearer token;
-- обработка сетевых ошибок, retry для временных сбоев и offline-баннер;
-- тёмная и светлая тема, настройки языка, валюты, PIN-кода и биометрии;
-- общие UI-компоненты и MVI-подобная организация состояния;
-- unit-тесты для domain/use case, sync-логики и PIN-сценариев;
-- Compose UI-тесты для выбора темы и ввода PIN-кода;
-- Android Lint и release-сборка через Gradle.
+Проект создан как portfolio pet project и демонстрирует не только UI на Jetpack Compose, но и полноценную архитектуру Android-приложения: offline-first хранение данных, фоновую синхронизацию, устойчивую работу с сетью, безопасный вход по PIN-коду и биометрии, локализацию и тестируемую бизнес-логику.
 
+`Kotlin` · `Jetpack Compose` · `Material 3` · `Clean Architecture` · `Room` · `Retrofit` · `WorkManager` · `Hilt`
 
-### Часть 1. Оставшиеся функции
+## Возможности
 
-Реализованы сценарии, которые раньше были в roadmap:
+- учёт расходов и доходов с выбором счёта, категории, даты, времени и комментарием;
+- создание, редактирование и удаление транзакций;
+- управление финансовыми счетами, балансом и валютой;
+- аналитика за выбранный период с круговой диаграммой и разбивкой по категориям;
+- фильтрация аналитики по типу операции, периоду, категориям и счёту;
+- работа с ранее загруженными данными без подключения к интернету;
+- сохранение изменений offline с последующей автоматической синхронизацией;
+- светлая, тёмная и системная темы;
+- интерфейс на русском, английском, немецком, французском и испанском языках;
+- защита приложения PIN-кодом и биометрией.
 
-- добавление расхода и дохода через `TransactionEditorBottomSheet`;
-- редактирование существующего расхода или дохода;
-- сохранение новой или изменённой транзакции через domain use case и repository;
-- обновление списков после успешного сохранения транзакции;
-- добавление финансового счёта через `AccountEditorBottomSheet`;
-- редактирование счёта: название, валюта и баланс;
-- сохранение изменений счёта через backend, если сеть доступна, или через локальную очередь, если приложение offline.
+## Скриншоты
 
-Редакторы находятся в `presentation/bottomSheets/transactionEditor` и `presentation/bottomSheets/accountEditor`. ViewModel'и не обращаются к data-слою напрямую: операции проходят через `TransactionUseCases` и `AccountUseCases`.
+| Расходы | Доходы | Счета |
+|:---:|:---:|:---:|
+| <img src="assets/screenshots/expenses.jpg" width="230" alt="Экран расходов"> | <img src="assets/screenshots/income.jpg" width="230" alt="Экран доходов"> | <img src="assets/screenshots/accounts.jpg" width="230" alt="Экран счетов"> |
 
-### Часть 2. Offline mode
+| Аналитика | Выбор периода | Детализация |
+|:---:|:---:|:---:|
+| <img src="assets/screenshots/analytics.jpg" width="230" alt="Экран аналитики"> | <img src="assets/screenshots/analytics-period-sheet.jpg" width="230" alt="Выбор периода аналитики"> | <img src="assets/screenshots/analytics-detail.jpg" width="230" alt="Детализация аналитики"> |
 
-Локальные данные хранятся в Room DB. База описана в `FinanceDatabase` и содержит таблицы:
+## Технические особенности
 
-- `accounts` — финансовые счета;
-- `categories` — категории операций;
-- `transactions` — расходы и доходы;
-- `sync_operations` — очередь операций, которые нужно отправить на backend.
+### Offline-first и синхронизация
 
-Repository работает по offline-first принципу:
+Room используется как локальный источник данных для счетов, категорий и транзакций. Пользователь может продолжать работу без сети: изменения сразу сохраняются локально, а операции, требующие отправки на сервер, попадают в отдельную очередь синхронизации.
 
-- при успешном сетевом ответе данные обновляются в Room;
-- если сеть недоступна или запрос временно не прошёл, приложение пытается показать локальный кэш;
-- новые offline-операции сохраняются в Room сразу и получают локальные отрицательные id;
-- операции создания, редактирования и удаления попадают в `sync_operations`;
-- при следующей синхронизации очередь отправляется на backend.
+Синхронизация реализована через WorkManager:
 
-### Синхронизация
+- запускается при старте приложения и после восстановления подключения;
+- повторяется в фоне каждые 2 часа при наличии сети;
+- последовательно обрабатывает pending-операции;
+- обновляет локальный snapshot после успешной отправки данных;
+- разрешает конфликты по стратегии Last Write Wins;
+- сообщает UI о неудачных операциях и позволяет повторить или отбросить их.
 
-Синхронизация вынесена в пакет `data/sync`.
+### Устойчивая работа с сетью
 
-Основные классы:
+REST API подключён через Retrofit, OkHttp и Kotlinx Serialization. Сетевые вызовы проходят через единый executor, который:
 
-- `SyncBootstrapper` — запускается при старте приложения, ставит периодическую синхронизацию и подписывается на появление интернета;
-- `WorkManagerSyncWorkScheduler` — планирует one-time и periodic sync;
-- `FinanceSyncWorker` — WorkManager worker, который выполняет синхронизацию;
-- `SyncCoordinator` — последовательно обрабатывает локальную очередь и обновляет snapshot данных с сервера;
-- `TransactionSyncOperationHandler` — синхронизирует создание, изменение и удаление транзакций;
-- `AccountSyncOperationHandler` — синхронизирует создание и изменение счетов;
-- `ServerSnapshotRefresher` — после успешной отправки локальных изменений перезагружает актуальные данные с backend;
-- `SyncConflictResolver` — решает конфликты между локальной и серверной версией данных.
+- проверяет подключение до выполнения запроса;
+- ограничивает запрос таймаутом в 15 секунд;
+- повторяет временные ошибки сети, timeout и ответы сервера `500`;
+- выполняет до трёх повторов с интервалом 2 секунды;
+- преобразует ошибки data-слоя в понятные состояния UI.
 
-Периодическая синхронизация запускается раз в 2 часа. Для WorkManager задано условие `NetworkType.CONNECTED`, поэтому worker стартует только при наличии подключения.
+При отсутствии подключения приложение использует локальный кэш и показывает offline-индикатор, не подменяя сетевые ошибки пустым экраном.
 
+### Безопасность
 
-## Архитектура
+PIN-код не хранится в открытом виде. Для проверки используется HMAC-SHA256:
 
-Проект разделён на несколько основных слоёв:
-
-```text
-presentation -> domain -> data -> local / network / sync
-       ^          ^        ^          ^        ^        ^
-       |          |        |          |        |        |
-      UI       use cases repositories Room   Retrofit WorkManager
-```
-
-Отдельно выделен `core`-слой. В нём находятся общие вещи, которые не относятся к конкретному экрану: тема, размеры, отступы, диспетчеры корутин, helper-функции и мониторинг сети.
+- криптографический ключ создаётся и хранится в Android Keystore;
+- для PIN генерируется индивидуальная соль;
+- в DataStore сохраняются только соль и verifier;
+- verifier сравнивается через `MessageDigest.isEqual`;
+- после серии неудачных попыток включается временная блокировка;
+- биометрический вход реализован через AndroidX Biometric.
 
 ### Presentation layer
 
-Пакет:
+Интерфейс полностью написан на Jetpack Compose и Material 3. Состояние экранов организовано в MVI-подобном стиле через `Intent`, `State` и одноразовые `Effect`. Повторно используемые элементы — bottom sheet, состояния загрузки и ошибок, списки, поля выбора и форматирование — вынесены в общие компоненты.
+
+Настройки темы, валюты и параметры входа сохраняются в DataStore. Для навигации используется Navigation Compose, а зависимости предоставляются через Hilt.
+
+## Архитектура
+
+Проект разделён на `presentation`, `domain` и `data`. UI зависит от use case, а детали Room, Retrofit и синхронизации скрыты за repository-контрактами доменного слоя.
+
+```mermaid
+flowchart LR
+    UI["Jetpack Compose UI"] --> VM["ViewModel<br/>Intent · State · Effect"]
+    VM --> UC["Domain use cases"]
+    UC --> RC["Repository contracts"]
+    RC --> RI["Repository implementations"]
+    RI --> DB["Room database"]
+    RI --> API["Retrofit REST API"]
+    WM["WorkManager"] --> SQ["Sync queue in Room"]
+    SQ --> API
+    API --> DB
+```
 
 ```text
-app/src/main/java/com/example/financeapp/presentation
+app/src/main/java/com/example/financeapp/
+├── core/           # тема, локализация, сеть, dispatchers
+├── presentation/   # Compose UI, ViewModel, state, navigation
+├── domain/         # модели, repository-контракты, use case
+├── data/
+│   ├── local/      # Room, DAO, entities, migrations
+│   ├── network/    # Retrofit API, DTO, auth, retry
+│   ├── offline/    # локальные pending-изменения
+│   ├── repository/ # реализации repository
+│   ├── security/   # PIN, Keystore, DataStore
+│   └── sync/       # WorkManager и обработка очереди
+└── di/             # Hilt-модули
 ```
 
-Корневой экран `FinanceApp` отвечает за связывание состояния, навигации и side effects. Тяжёлая UI-логика вынесена в отдельные host-компоненты:
-
-- `MainNavigationContent` — основной `NavHost` и callbacks экранов;
-- `MainAppChrome` — top bar, bottom navigation и floating action button;
-- `EditorSheetHost` — bottom sheet редакторов транзакций и счетов;
-- `SettingsSheetHost` — bottom sheet настроек;
-- `MainDialogHost` — диалоги удаления и синхронизации;
-- `MainNavigation` — маршруты и helper-функции навигации.
-
-Так `Activity` и корневой composable остаются точками сборки сценария, а детали конкретных экранов живут рядом с соответствующей feature-логикой.
-
-### Основные экраны
-
-Расходы, доходы и счета на главных вкладках собираются через `GetFinancialSummaryUseCase`. Он получает счета и транзакции по выбранной дате, а `MainViewModel` уже на `Default` dispatcher раскладывает результат по состояниям расходов, доходов и счетов.
-
-Типичный поток:
-
-```text
-FinanceApp
-    -> MainViewModel
-        -> GetFinancialSummaryUseCase
-        -> AccountUseCases
-        -> TransactionUseCases
-            -> TransactionsRepository
-                -> Room cache
-                -> FinanceRemoteDataSource / FinanceApiService
-                -> sync queue для pending-операций
-```
-
-Если сеть недоступна, экран не превращается в пустое состояние: репозитории возвращают данные из Room, а корневой UI дополнительно показывает offline-баннер.
-
-### Analytics
-
-Экран аналитики строится вокруг `GetTransactionAnalysisUseCase`.
-
-Он поддерживает фильтры:
-
-- тип операции: расходы, доходы или всё;
-- период: неделя, месяц, квартал, год или произвольный период;
-- категории;
-- счет.
-
-Для выбора фильтров используются общие bottom sheet-компоненты на базе `FinanceModalBottomSheet`.
-
-## Domain layer
-
-Пакет:
-
-```text
-app/src/main/java/com/example/financeapp/domain
-```
-
-Domain-слой содержит бизнес-модели, интерфейсы репозиториев и use case'ы. Он не зависит от Android UI и не знает, какая конкретная реализация данных используется.
-
-Основные модели:
-
-- `Money`;
-- `Currency`;
-- `Transaction`;
-- `TransactionDraft`;
-- `TransactionType`;
-- `Category`;
-- `Account`;
-- `AccountDraft`;
-- `TransactionSummary`;
-- `AccountSummary`;
-- `TransactionAnalysis`.
-
-Репозитории в domain — это интерфейсы:
-
-- `TransactionsRepository`;
-- `FinancialAccountsRepository`;
-- `CategoriesRepository`.
-
-Use case'ы:
-
-- `TransactionUseCases` — получает, создаёт, обновляет и удаляет транзакции;
-- `AccountUseCases` — получает, создаёт, обновляет и удаляет счета;
-- `CategoryUseCase` — получает категории операций;
-- `GetFinancialSummaryUseCase` — собирает данные для главных экранов расходов, доходов и счетов;
-- `GetTransactionAnalysisUseCase` — готовит данные аналитики, категории, проценты и список операций;
-- `SynchronizationUseCases` — даёт UI доступ к событиям синхронизации и управлению неудачными операциями;
-- `Money.sum` — чистая доменная операция для суммирования денежных значений.
-
-Суммирование денег не использует репозиторий, потому что не загружает данные. Оно выполняет только расчёт над уже переданным списком. Это делает доменную операцию переиспользуемой и простой для тестирования.
-
-## Data, Local, Sync и Network layer
-
-Пакеты:
-
-```text
-app/src/main/java/com/example/financeapp/data
-app/src/main/java/com/example/financeapp/data/local
-app/src/main/java/com/example/financeapp/data/offline
-app/src/main/java/com/example/financeapp/data/sync
-app/src/main/java/com/example/financeapp/data/network
-```
-
-Data-слой содержит реализации репозиториев, локальное хранилище, очередь offline-операций, синхронизацию и мапперы между DTO, Room entity и domain-моделями.
-
-Реализации репозиториев:
-
-- `TransactionsDataRepository`;
-- `FinancialAccountsDataRepository`;
-- `CategoriesDataRepository`.
-
-Репозитории скрывают от domain-слоя детали того, откуда пришли данные. Для UI и use case'ов сценарий остаётся единым: запросить данные или сохранить изменение. Внутри repository решает, можно ли сходить в сеть, нужно ли вернуть кэш из Room или поставить изменение в очередь синхронизации.
-
-### Local storage
-
-Локальное хранилище построено на Room.
-
-Основные элементы:
-
-- `FinanceDatabase` — Room database;
-- `AccountDao` — доступ к счетам;
-- `CategoryDao` — доступ к категориям;
-- `TransactionDao` — доступ к транзакциям;
-- `SyncOperationDao` — доступ к очереди синхронизации;
-- `AccountEntity`, `CategoryEntity`, `TransactionEntity`, `SyncOperationEntity` — локальные entity;
-- `LocalAccountMapper`, `LocalTransactionMapper` — маппинг Room entity в domain-модели.
-
-Локальные записи имеют `syncState`, чтобы UI и sync-слой могли отличать синхронизированные данные от pending-изменений. Новые offline-сущности получают локальные отрицательные id до тех пор, пока backend не вернёт настоящий id.
-
-### Offline operations
-
-Пакет `data/offline` отвечает за сохранение пользовательских изменений, которые пока нельзя отправить на сервер.
-
-Основные классы:
-
-- `PendingTransactionMutationStore` — создаёт локальные транзакции, обновляет pending-транзакции, ставит в очередь update/delete;
-- `PendingAccountMutationStore` — создаёт локальные счета и ставит в очередь изменения счёта.
-
-Такой подход позволяет пользователю продолжать работу без сети: операция сразу появляется в списке, а backend догоняет локальное состояние позже.
-
-### Sync layer
-
-Пакет `data/sync` отвечает за доставку локальных изменений на backend и обновление локального snapshot.
-
-Поток синхронизации:
-
-```text
-SyncBootstrapper
-    -> SyncWorkScheduler
-        -> WorkManager
-            -> FinanceSyncWorker
-                -> SyncCoordinator
-                    -> SyncOperationDao
-                    -> TransactionSyncOperationHandler / AccountSyncOperationHandler
-                    -> ServerSnapshotRefresher
-                    -> SyncEventPublisher
-```
-
-`SyncCoordinator` обрабатывает pending-операции последовательно. Retryable-ошибки оставляют задачу на повтор через WorkManager, неретрайбл-ошибки помечаются как `FAILED`, а UI может предложить повторить или отбросить неудачные операции.
-
-Сетевой слой содержит:
-
-- `FinanceApiService` — Retrofit API;
-- `FinanceRemoteDataSource` — контракт удалённого источника;
-- `FinanceNetworkDataSource` — реализация удалённого источника;
-- `NetworkRequestExecutor` — единая точка выполнения сетевых запросов;
-- `RetryPolicy` — параметры повторных запросов;
-- `NetworkResult` — типизированный результат сетевого вызова;
-- `NetworkDataException` — ошибки data-слоя после маппинга результата.
-
-Все сетевые запросы выполняются асинхронно на `Dispatchers.IO` через `NetworkRequestExecutor`.
-
-## Политика retry
-
-В приложении есть общая политика retry для сетевых запросов. Она применяется централизованно в `NetworkRequestExecutor`, поэтому экраны и use case'ы не дублируют retry-логику.
-
-Правила:
-
-- перед запросом проверяется `NetworkMonitor`;
-- если интернет на устройстве выключен, запрос не стартует;
-- каждый запрос выполняется с timeout `15 секунд`;
-- при временной ошибке запрос повторяется автоматически;
-- максимум выполняется 3 повторных запроса после первой попытки;
-- интервал между повторами фиксированный: 2 секунды;
-- backoff не используется.
-
-Retry применяется для:
-
-- `HTTP 500`;
-- `NetworkError`;
-- `TimeoutError`.
-
-Retry не применяется для:
-
-- `400`;
-- `401`;
-- `404`;
-- ошибок сериализации;
-- неизвестных ошибок, которые нельзя безопасно считать временными.
-
-Автоматический retry не заменяет ручное действие пользователя. Если данные не удалось загрузить, приложение показывает экран ошибки с кнопкой "Повторить". Нажатие на эту кнопку отправляет `Retry` intent во ViewModel, запускает новый `refreshFromNetwork` и снова проходит через общую сетевую политику.
-
-## Отслеживание сети и ошибки
-
-Состояние подключения отслеживается через `ConnectivityManager` в `ConnectivityNetworkMonitor`.
-
-Если на телефоне нет валидного интернет-соединения:
-
-- в корневом UI появляется offline-баннер;
-- lifecycle refresh не дёргает сеть;
-- сетевой executor сразу возвращает сетевую ошибку;
-- экран может показать ошибку "Нет подключения к интернету".
-
-Ошибки для UI классифицируются через `ScreenErrorMapper`.
-
-Возможные экранные состояния:
-
-- `NO_INTERNET`;
-- `SERVER_ERROR`;
-- `TIMEOUT`;
-- `LOAD_FAILED`.
-
-`ErrorContent` показывает текст под конкретный тип ошибки и кнопку "Повторить".
-
-## Dependency Injection
-
-DI реализован через Hilt.
-
-Точки входа:
-
-- `FinanceApplication` помечен `@HiltAndroidApp`;
-- `MainActivity` помечен `@AndroidEntryPoint`;
-- ViewModel'и помечены `@HiltViewModel`;
-- зависимости передаются через `@Inject constructor`.
-
-Основные DI-модули:
-
-- `RepositoryModule` — связывает domain repository interfaces с data implementations;
-- `LocalDataModule` — создаёт Room database и DAO;
-- `SyncModule` — связывает scheduler, repository событий синхронизации и sync-зависимости;
-- `NetworkModule` — создаёт Retrofit, OkHttp, JSON, `RetryPolicy` и network data source;
-- `NetworkMonitorModule` — связывает `NetworkMonitor` с `ConnectivityNetworkMonitor`;
-- `DispatchersModule` — предоставляет `IoDispatcher` и `DefaultDispatcher`.
-
-## Защищённое хранение PIN-кода
-
-PIN-код не хранится в открытом виде. Для проверки используется соль и криптографический verifier, а состояние защиты хранится через DataStore.
-
-`EncryptedSharedPreferences` намеренно не используется: API из `androidx.security:security-crypto` помечены как deprecated в актуальной версии библиотеки. Вместо этого проект опирается на платформенный Android Keystore и DataStore:
-
-- Android Keystore защищает криптографические операции на уровне платформы;
-- DataStore используется как современная замена SharedPreferences для хранения состояния;
-- presentation-слой работает только через `SecurityUseCases`, не обращаясь к хранилищу напрямую.
-
-PIN-настройки разделены на:
-
-- `PinCodeSettingsSheet` — Compose-координатор состояния экрана;
-- `PinCodeSettingsContent` — отображение действий, подтверждения сброса и success-состояния;
-- `PinCodeSettingsProcessor` — чистая логика переходов между шагами ввода PIN;
-- `PinCodeSettingsProcessorTest` — unit-тесты сценариев смены и ошибки PIN.
-
-Биометрическая авторизация вынесена в `BiometricPromptController`, чтобы `MainActivity` не хранила детали создания `BiometricPrompt`.
-
-## Как запустить после клонирования
-
-После клонирования проекта из удалённого репозитория нужно настроить локальные параметры окружения.
-Добавить API-токен для backend:
-
-```properties
-SHMR_API_TOKEN=your_token_here
-```
-Токен читается в `app/build.gradle.kts` и попадает в `BuildConfig.SHMR_API_TOKEN`.
-Затем `BuildConfigAuthTokenProvider` передаёт его в `BearerAuthInterceptor`, который добавляет `Authorization: Bearer ...` к запросам.
-Если `SHMR_API_TOKEN` не указан или указан неверно, реальные backend-запросы будут получать `401 Unauthorized`.
-
-
-## Тесты
-
-В проекте есть unit-тесты для:
-
-- `Money`;
-- `TransactionUseCases`;
-- `AccountUseCases`;
-- `GetFinancialSummaryUseCase`;
-- `GetTransactionAnalysisUseCase`;
-- `TransactionSyncOperationHandler`;
-- `AccountSyncOperationHandler`;
-- `LastWriteWinsSyncConflictResolver`;
-- сетевого integration/smoke-сценария для реального API;
-- `PinCodeSettingsProcessor`.
-
-Compose UI-тесты находятся в `app/src/androidTest`:
-
-- `ThemeSettingsSheetTest` — проверяет выбор тёмной темы;
-- `PinCodeSettingsSheetTest` — проверяет ввод и сохранение нового PIN-кода.
-
-Компиляция instrumentation-тестов:
+## Стек
+
+| Область | Технологии |
+|---|---|
+| Язык и UI | Kotlin, Coroutines, Flow, Jetpack Compose, Material 3 |
+| Архитектура | Clean Architecture, Repository, Use Case, MVI-подобный presentation layer |
+| Навигация и DI | Navigation Compose, Hilt, KSP |
+| Локальные данные | Room, DataStore |
+| Сеть | Retrofit, OkHttp, Kotlinx Serialization |
+| Фоновые задачи | WorkManager |
+| Безопасность | Android Keystore, HMAC-SHA256, AndroidX Biometric |
+| Тестирование | JUnit, Coroutines Test, Compose UI Test, Espresso |
+
+Текущая конфигурация проекта: Kotlin `2.0.21`, Android Gradle Plugin `8.13.2`, `minSdk 26`, `targetSdk 36`.
+
+## Тестирование
+
+В проекте есть unit-, integration- и instrumented-тесты. Основные сценарии покрытия:
+
+- расчёты денежных значений и аналитики;
+- use case для счетов и транзакций;
+- маппинг network, local и domain-моделей;
+- обработчики offline-синхронизации и разрешение конфликтов;
+- reducers и ViewModel редактора транзакций;
+- фильтры и мапперы аналитики;
+- форматирование денежных значений;
+- настройка темы и PIN-кода в Compose UI.
+
+Полезные команды:
 
 ```bash
+# Unit-тесты
+./gradlew :app:testDebugUnitTest
+
+# Компиляция instrumented-тестов
 ./gradlew :app:compileDebugAndroidTestKotlin
+
+# Android Lint
+./gradlew :app:lintDebug
 ```
 
-Запуск на подключенном устройстве или эмуляторе:
+Instrumented-тесты запускаются на подключённом устройстве или эмуляторе:
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-## Качество и release
+### Appium UI/UX-тесты
 
-Статический анализ настроен через Android Lint в `app/build.gradle.kts`. Для локальной проверки можно запускать:
+Внешний набор Appium проверяет не отдельные клики, а законченные пользовательские задачи: насколько предсказуемо пользователь находит нужную функцию и видит результат действия. Это автоматизированная проверка интерфейса; для оценки реальной понятности и удовлетворённости она дополняется наблюдением и обратной связью живых пользователей.
+
+Покрыты восемь сценариев:
+
+1. Ориентация на первом экране и доступность основной навигации.
+2. Поиск разделов расходов и доходов.
+3. Переход к финансовым счетам.
+4. Открытие аналитики из верхней панели.
+5. Выбор темы и сохранение выбранного варианта.
+6. Выбор и применение даты операции.
+7. Отмена изменения даты операции.
+8. Создание и подтверждение PIN-кода.
+
+Тесты находятся в [`appium/`](appium/README.md) и используют Appium 2, UiAutomator2 и стабильные идентификаторы Compose `testTag`. Перед запуском нужны Node.js 20+, запущенный Android-эмулятор или подключённое устройство, debug APK и Appium Server:
 
 ```bash
-./gradlew :app:lintDebug
+cd appium
+npm install
+npx appium driver install uiautomator2
+npx appium
 ```
 
-Lint генерирует HTML, XML, SARIF и text-отчёты в `app/build/reports`.
-
-Релизная сборка собирается через Gradle:
+Во втором терминале:
 
 ```bash
-./gradlew :app:assembleRelease
+cd appium
+npm run test:android
 ```
 
-После успешной сборки APK появляется в:
+По умолчанию используется APK `app/build/outputs/apk/debug/app-debug.apk`. Для другого пути задайте переменную `FINANCE_APP_PATH`. Полные предусловия, включая настройку токена и backend для сценариев с редактором операции, описаны в [appium/README.md](appium/README.md).
 
-```text
-app/build/outputs/apk/release/app-release-unsigned.apk
-```
+## Запуск проекта
 
+### Требования
+
+- Android Studio с поддержкой Android SDK 36;
+- JDK 17;
+- устройство или эмулятор с Android 8.0 (API 26) и выше;
+- токен доступа к backend API.
+
+### Установка
+
+1. Клонируйте репозиторий:
+
+   ```bash
+   git clone https://github.com/Nejas/FinanceApp.git
+   cd FinanceApp
+   ```
+
+2. Откройте проект в Android Studio и дождитесь Gradle Sync.
+
+3. Добавьте API-токен в локальный файл `local.properties`:
+
+   ```properties
+   SHMR_API_TOKEN=your_token_here
+   ```
+
+   `local.properties` исключён из Git, поэтому секрет не попадёт в репозиторий. Во время сборки значение передаётся в `BuildConfig` и используется Bearer-интерцептором. Без корректного токена backend вернёт `401 Unauthorized`.
+
+4. Запустите приложение из Android Studio или соберите debug APK:
+
+   ```bash
+   ./gradlew :app:assembleDebug
+   ```
+
+   В Windows PowerShell используйте `.\gradlew.bat :app:assembleDebug`.
+
+## Что демонстрирует проект
+
+- проектирование Android-приложения с разделением ответственности между слоями;
+- согласование локального и серверного состояния в offline-first сценариях;
+- работу с конкурентными операциями, очередью изменений и конфликтами синхронизации;
+- безопасное хранение данных для проверки PIN-кода;
+- управление сложным Compose-состоянием без прямой зависимости UI от data-слоя;
+- тестирование бизнес-логики, presentation-компонентов и интеграции с API.

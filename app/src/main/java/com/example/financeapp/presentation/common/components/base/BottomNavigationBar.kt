@@ -12,6 +12,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.financeapp.core.theme.LocalSizing
@@ -22,6 +23,7 @@ import com.example.financeapp.presentation.common.components.icons.FinanceTrendi
 import com.example.financeapp.presentation.navigation.AppRoute
 import com.example.financeapp.presentation.navigation.BottomNavIcon
 import com.example.financeapp.presentation.navigation.bottomNavItems
+import com.example.financeapp.presentation.common.testing.FinanceTestTags
 
 @Composable
 fun BottomNavigationBar(
@@ -44,6 +46,7 @@ fun BottomNavigationBar(
             bottomNavItems.forEach { item ->
                 val isSelected = item.route == selectedRoute
                 NavigationBarItem(
+                    modifier = Modifier.testTag(FinanceTestTags.bottomNavigation(item.route.route)),
                     selected = isSelected,
                     onClick = { onRouteSelected(item.route) },
                     icon = {
